@@ -34,21 +34,19 @@ This project provides an implementation of two popular data mining algorithms: *
    git clone https://github.com/your-username/your-repo-name.git
    cd your-repo-name
 
-Install Dependencies: Install Python dependencies listed in requirements.txt:
+2. **Install Dependencies**:
+   
+- Install Python dependencies listed in requirements.txt:
 
-bash
-Copy code
-pip install -r requirements.txt
-Prepare Dataset: Place your CSV dataset (e.g., dataset1.csv) in the project root directory.
+- pip install -r requirements.txt
+  
+- Prepare Dataset: Place your CSV dataset (e.g., dataset1.csv) in the project root directory.
 
-Run the Script: Execute the main script to perform frequent pattern mining:
-
-bash
-Copy code
-python main.py
+- Run the Script: Execute the main script to perform frequent pattern mining:
 
 
-Running Apriori Algorithm...
+
+3. **Running Apriori Algorithm...**
 Frequent Itemsets:
 [('A',), ('B',), ('A', 'B')]
 
