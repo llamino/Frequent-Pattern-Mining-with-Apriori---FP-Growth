@@ -1,4 +1,4 @@
-# --------------------------    Apriori Algorithm Implementation    -------------------------
+# --------------------------  --  Apriori Algorithm Implementation  --  -------------------------
 
 def generateCandidate(itemsets, k):
     """Generate candidate k-itemsets from the given itemsets."""
