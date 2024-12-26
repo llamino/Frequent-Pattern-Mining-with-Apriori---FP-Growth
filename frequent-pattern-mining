@@ -1,0 +1,263 @@
+# --------------------------    Apriori Algorithm Implementation    -------------------------
+
+def generateCandidate(itemsets, k):
+    """Generate candidate k-itemsets from the given itemsets."""
+    candidates = []
+    for i in range(len(itemsets)):
+        for j in range(i + 1, len(itemsets)):
+            # Combine two itemsets with k-1 items in common
+            candidate = tuple(sorted(set(itemsets[i]) | set(itemsets[j])))
+            if len(candidate) == k and candidate not in candidates:
+                candidates.append(candidate)
+    return candidates
+
+def calculateItemsetSupport(itemsets, transactions):
+    """Calculate the support of each itemset in the transactions."""
+    frequent_itemsets = {}
+    for itemset in itemsets:
+        for transaction in transactions:
+            if itemset not in frequent_itemsets:
+                frequent_itemsets[itemset] = 0
+            if all(item in transaction for item in itemset):
+                frequent_itemsets[itemset] += 1
+    return frequent_itemsets
+
+def removeItemset(itemsets, min_support):
+    """Remove itemsets that do not meet the minimum support threshold."""
+    next_itemsets = []
+    for key in itemsets:
+        if itemsets[key] >= min_support:
+            next_itemsets.append(tuple(key))
+    return next_itemsets
+
+def generateAssociationRules(frequent_itemsets, transactions, min_conf):
+    """Generate association rules from frequent itemsets based on minimum confidence."""
+    rules = []
+    transaction_count = len(transactions)
+    for itemset in frequent_itemsets:
+        if len(itemset) < 2:
+            continue
+        subsets = list(itertools.chain.from_iterable(itertools.combinations(itemset, r) for r in range(1, len(itemset))))
+        for subset in subsets:
+            remainder = tuple(sorted(set(itemset) - set(subset)))
+            if not remainder:
+                continue
+            support_itemset = sum(1 for transaction in transactions if all(item in transaction for item in itemset))
+            support_subset = sum(1 for transaction in transactions if all(item in transaction for item in subset))
+            confidence = support_itemset / support_subset if support_subset > 0 else 0
+            if confidence >= min_conf:
+                rules.append({
+                    'rule': f"{subset} -> {remainder}",
+                    'support': support_itemset / transaction_count,
+                    'confidence': confidence
+                })
+    return rules
+
+def apriori(transactions, itemsets, k_frequent_number, min_support):
+    """Apriori algorithm for frequent itemset generation."""
+    itemsets = [(item,) for item in itemsets]
+    itemsets_support = calculateItemsetSupport(itemsets, transactions)
+    itemsets_support = removeItemset(itemsets_support, min_support)
+
+    frequent_itemsets = itemsets_support
+    all_frequent_itemsets = frequent_itemsets.copy()
+
+    for k_frequent in range(2, k_frequent_number + 1):
+        k_permutation_itemsets = generateCandidate(frequent_itemsets, k_frequent)
+        list_of_frequency_with_repeadation = calculateItemsetSupport(k_permutation_itemsets, transactions)
+        next_itemsets = removeItemset(list_of_frequency_with_repeadation, min_support)
+
+        frequent_itemsets = next_itemsets
+        all_frequent_itemsets.extend(frequent_itemsets)
+        print(f'Frequent {k_frequent}-itemsets: {frequent_itemsets}')
+
+    return all_frequent_itemsets
+
+# Test Apriori Algorithm
+def test_apriori():
+    """Run and test Apriori algorithm."""
+    import pandas as pd
+
+    # Load dataset and preprocess transactions
+    data = pd.read_csv('dataset1.csv')
+    pivot_df = data.pivot(index='CID', columns='IiD', values='PName')
+    goods = data['PName'].drop_duplicates()
+    transactions = pivot_df.fillna('').values.tolist()
+
+    # Set parameters
+    k_frequent_number = 3
+    min_support = 220
+    min_conf = 0.8
+
+    # Run Apriori
+    frequent_itemsets = apriori(transactions, goods, k_frequent_number, min_support)
+    rules = generateAssociationRules(frequent_itemsets, transactions, min_conf)
+
+    print("\nApriori Results:\n")
+    print("Frequent Itemsets:")
+    for itemset in frequent_itemsets:
+        print(itemset)
+
+    print("\nAssociation Rules:")
+    for rule in rules:
+        print(rule)
+
+# ------------------------   End of Apriori Implementation   -------------------------
+
+# --------------------------    FP-Growth Algorithm Implementation    -------------------------
+
+class FPNode:
+    """Node class for the FP-Tree."""
+    def __init__(self, item, count, parent):
+        self.item = item
+        self.count = count
+        self.parent = parent
+        self.children = {}
+        self.link = None
+
+    def increment(self, count):
+        self.count += count
+
+def buildFPTree(transactions, min_support):
+    """Build the FP-Tree and header table."""
+    item_counts = defaultdict(int)
+    for transaction in transactions:
+        for item in transaction:
+            item_counts[item] += 1
+
+    item_counts = {item: count for item, count in item_counts.items() if count >= min_support}
+    if not item_counts:
+        return None, None
+
+    ordered_items = sorted(item_counts, key=item_counts.get, reverse=True)
+    header_table = {item: [item_counts[item], None] for item in ordered_items}
+
+    root = FPNode(None, 1, None)
+    for transaction in transactions:
+        sorted_items = [item for item in transaction if item in item_counts]
+        sorted_items.sort(key=lambda item: item_counts[item], reverse=True)
+        updateTree(sorted_items, root, header_table)
+
+    return root, header_table
+
+def updateTree(items, root, header_table):
+    """Recursively update the FP-Tree with sorted items."""
+    if not items:
+        return
+
+    first_item = items[0]
+    if first_item in root.children:
+        root.children[first_item].increment(1)
+    else:
+        root.children[first_item] = FPNode(first_item, 1, root)
+        if header_table[first_item][1] is None:
+            header_table[first_item][1] = root.children[first_item]
+        else:
+            current_node = header_table[first_item][1]
+            while current_node.link is not None:
+                current_node = current_node.link
+            current_node.link = root.children[first_item]
+
+    updateTree(items[1:], root.children[first_item], header_table)
+
+def findPrefixPaths(base_item, header_table):
+    """Find prefix paths for a given base item in the FP-Tree."""
+    conditional_patterns = []
+    node = header_table[base_item][1]
+    while node is not None:
+        prefix_path = []
+        parent = node.parent
+        while parent is not None and parent.item is not None:
+            prefix_path.append(parent.item)
+            parent = parent.parent
+        if prefix_path:
+            conditional_patterns.append((prefix_path, node.count))
+        node = node.link
+    return conditional_patterns
+
+def mineFPTree(header_table, min_support, prefix, frequent_itemsets):
+    """Mine the FP-Tree to find frequent itemsets."""
+    for base_item in header_table:
+        new_prefix = prefix + [base_item]
+        frequent_itemsets.append(new_prefix)
+
+        conditional_patterns = findPrefixPaths(base_item, header_table)
+        conditional_tree_input = []
+        for path, count in conditional_patterns:
+            for _ in range(count):
+                conditional_tree_input.append(path)
+
+        conditional_tree, conditional_header = buildFPTree(conditional_tree_input, min_support)
+
+        if conditional_header is not None:
+            mineFPTree(conditional_header, min_support, new_prefix, frequent_itemsets)
+
+def generateAssociationRulesFromFP(frequent_itemsets, transactions, min_conf):
+    """Generate association rules from frequent itemsets using FP-Growth."""
+    rules = []
+    transaction_count = len(transactions)
+    for itemset in frequent_itemsets:
+        if len(itemset) < 2:
+            continue
+        subsets = list(itertools.chain.from_iterable(itertools.combinations(itemset, r) for r in range(1, len(itemset))))
+        for subset in subsets:
+            remainder = tuple(sorted(set(itemset) - set(subset)))
+            if not remainder:
+                continue
+            support_itemset = sum(1 for transaction in transactions if all(item in transaction for item in itemset))
+            support_subset = sum(1 for transaction in transactions if all(item in transaction for item in subset))
+            confidence = support_itemset / support_subset if support_subset > 0 else 0
+            if confidence >= min_conf:
+                rules.append({
+                    'rule': f"{subset} -> {remainder}",
+                    'support': support_itemset / transaction_count,
+                    'confidence': confidence
+                })
+    return rules
+
+# Test FP-Growth Algorithm
+def test_fp_growth():
+    """Run and test FP-Growth algorithm."""
+    import pandas as pd
+
+    # Load dataset and preprocess transactions
+    data = pd.read_csv('dataset1.csv')
+    pivot_df = data.pivot(index='CID', columns='IiD', values='PName')
+    transactions = pivot_df.fillna('').values.tolist()
+
+    # Set parameters
+    min_support = 220
+    min_conf = 0.8
+
+    # Build FP-Tree
+    fp_tree, header_table = buildFPTree(transactions, min_support)
+    frequent_itemsets = []
+    if header_table is not None:
+        mineFPTree(header_table, min_support, [], frequent_itemsets)
+
+    # Generate association rules
+    rules = generateAssociationRulesFromFP(frequent_itemsets, transactions, min_conf)
+
+    print("\nFP-Growth Results:\n")
+    print("Frequent Itemsets:")
+    for itemset in frequent_itemsets:
+        print(itemset)
+
+    print("\nAssociation Rules:")
+    for rule in rules:
+        print(rule)
+
+# ------------------------   End of FP-Growth Implementation   -------------------------
+
+# ------------------------   Main Function for Execution   -------------------------
+
+def main():
+    """Main function to execute Apriori and FP-Growth algorithms."""
+    print("\nRunning Apriori Algorithm...")
+    test_apriori()
+
+    print("\nRunning FP-Growth Algorithm...")
+    test_fp_growth()
+
+if __name__ == "__main__":
+    main()
